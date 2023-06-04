@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>World Map Visualization</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="chernoff-face.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+    />
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.bundle.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.13.1/css/bootstrap-select.min.css"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.13.1/js/bootstrap-select.min.js"></script>
+
+    <style>
+      #world-map,
+      #line-plot,
+      #scatter-plot {
+        margin: 20px;
+        border: 1px solid #ccc;
+      }
+
+      .dot {
+        transition: all 0.3s ease;
+      }
+
+      .country {
+        stroke-width: 1;
+        stroke: #bbb;
+        transition: all 0.3s ease;
+      }
+
+      .highlight {
+        stroke-width: 1;
+        stroke: #000;
+      }
+
+      .tooltip {
+        width: 300px;
+        height: 150px;
+        position: absolute;
+        background: #fff;
+        padding: 5px;
+        border: 0px solid #000;
+        pointer-events: none;
+        display: none;
+        z-index: 1000;
+        /* 设置一个较大的z-index值 */
+      }
+
+      svg {
+        border: 1px solid black;
+        padding: 10px;
+      }
+
+      body,
+      html {
+        width: 80%;
+        height: 80%;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: #f9f9f9;
+        color: #333;
+        font-family: Arial, sans-serif;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Access to Energy</h1>
+    <div id="main-container">
+      <div id="controls-container">
+        <h2>Choose Data</h2>
+        <select id="data-selector" class="selectpicker" data-live-search="true">
+          <optgroup label="Energy">
+            <option value="electricity" selected>Access to electricity</option>
+            <option value="fuels">Access to clean fuels for cooking</option>
+          </optgroup>
+          <optgroup label="Economy">
+            <option value="GDP">GDP per capita</option>
+            <option value="lifespan">Average life span</option>
+          </optgroup>
+          <optgroup label="Comparison">
+            <option value="electricity_GDP">
+              Access to electricity vs GDP per capita
+            </option>
+            <option value="fuels_GDP">
+              Access to clean fuels for cooking vs GDP per capita
+            </option>
+            <option value="electricity_lifespan">
+              Access to electricity vs Average life span
+            </option>
+            <option value="fuels_lifespan">
+              Access to clean fuels for cooking vs Average life span
+            </option>
+          </optgroup>
+        </select>
+
+        <h2>Select contries to compare</h2>
+        <select
+          id="country-selector"
+          class="selectpicker"
+          multiple
+          data-max-options="2"
+          data-live-search="true"
+        >
+          <option>Mustard</option>
+          <option>Ketchup</option>
+          <option>Relish</option>
+        </select>
+        <button type="button" class="btn btn-secondary">Compare</button>
+      </div>
+      <div id="map-container">
+        <svg id="world-map"></svg>
+        <div id="tooltip" class="tooltip"></div>
+      </div>
+      <div id="scatterplot-container" style="display: none">
+        <svg id="scatter-plot"></svg>
+      </div>
+      <div id="linechart-container" style="display: none">
+        <!-- <svg id="line-plot"></svg> -->
+      </div>
+    </div>
+    <script>
+      var cleanFuels2020 = {};
+      var electricity2020 = {};
+      var GDP2020 = {};
+      var averageLifeSpan2020 = {};
+      var lineChartValue = {};
+      var cleanFuelsForLineChart = {};
+      var electricityForLineChart = {};
+      var GDPForLineChart = {};
+      var combinedData = [];
+      var combinedData2020 = [];
+      var electricityVsGDP = {};
+      var electricityVsLifeSpan = {};
+      var cleanFuelVsGDP = {};
+      var cleanFuelVsLifeSpan = {};
+
+      var gdpDomain, electricDomain, lifeDomain, fuelDomain;
+      var faceScaleFace, faceScaleEyebrow, faceScaleHair, faceScaleMouth;
+
+      // 当select的值改变时，使用相应的颜色比例尺
+      $("#data-selector").on("changed.bs.select", function () {
+        var selectedOption = $(this).val();
+
+        // 根据 select 元素的值选择颜色插值器
+        var colorInterpolator;
+        var values2020;
+        var scaleDomain;
+
+        switch (selectedOption) {
+          case "electricity":
+            colorInterpolator = d3.interpolateBlues;
+            values2020 = electricity2020;
+            lineChartValue = electricityForLineChart;
+            // scaleDomain = d3.extent(combinedData, function (d) {
+            //   return d.AccessToElectricity;
+            // });
+            scaleDomain = electricDomain;
+            $("#scatterplot-container").hide();
+            $("#linechart-container").hide();
+            break;
+          case "fuels":
+            colorInterpolator = d3.interpolateGreens;
+            values2020 = cleanFuels2020;
+            lineChartValue = cleanFuelsForLineChart;
+            // scaleDomain = d3.extent(combinedData, function (d) {
+            //   return d.IndicatorCleanFuel;
+            // });
+            scaleDomain = fuelDomain;
+            $("#scatterplot-container").hide();
+            $("#linechart-container").hide();
+            break;
+          case "GDP":
+            colorInterpolator = d3.interpolateOranges;
+            values2020 = GDP2020;
+            lineChartValue = GDPForLineChart;
+            // scaleDomain = d3.extent(combinedData, function (d) {
+            //   return d.GDP;
+            // });
+            scaleDomain = gdpDomain;
+            $("#scatterplot-container").hide();
+            $("#linechart-container").hide();
+            break;
+          case "lifespan":
+            colorInterpolator = d3.interpolateGreys;
+            values2020 = averageLifeSpan2020;
+            // scaleDomain = d3.extent(combinedData, function (d) {
+            //   return d.AverageLifeSpan;
+            // });
+            scaleDomain = lifeDomain;
+            $("#scatterplot-container").hide();
+            $("#linechart-container").hide();
+            break;
+          case "electricity_GDP":
+            colorInterpolator = d3.interpolatePurples;
+            values2020 = electricityVsGDP;
+            scaleDomain = d3.extent(Object.values(electricityVsGDP));
+            var scatterData = combinedData.filter(function (row) {
+              return (
+                row["Year"] === "2020" &&
+                row["AccessToElectricity"] &&
+                row["GDP"]
+              );
+            });
+            scatterX = d3.scaleLog().range([0, scatterWidth]);
+            scatterX
+              .domain(
+                d3.extent(scatterData, function (d) {
+                  return +d["GDP"];
+                })
+              )
+              .nice();
+
+            // 绑定数据
+            var dots = d3.selectAll(".dot");
+
+            // 处理需要删除的元素
+            dots.remove();
+
+            // 处理需要新增的元素
+            setupScatterDots(scatterData, "GDP", "AccessToElectricity");
+            // scatterSvg.select(".line").remove();
+
+            // scatterSvg.append("line")
+            // .attr("x1", scatterX(500))   // x position of the first end of the line
+            // .attr("y1", scatterY(0))     // y position of the first end of the line
+            // .attr("x2", scatterX(50000)) // x position of the second end of the line
+            // .attr("y2", scatterY(100))   // y position of the second end of the line
+            // .attr("stroke", "red");      // line color
+
+            $("#scatterplot-container").show();
+            $("#linechart-container").hide();
+            break;
+          case "fuels_GDP":
+            colorInterpolator = d3.interpolateReds;
+            values2020 = cleanFuelVsGDP;
+            scaleDomain = d3.extent(Object.values(cleanFuelVsGDP));
+            var scatterData = combinedData.filter(function (row) {
+              return (
+                row["Year"] === "2020" &&
+                row["IndicatorCleanFuel"] &&
+                row["GDP"]
+              );
+            });
+            scatterX = d3.scaleLog().range([0, scatterWidth]);
+            scatterX
+              .domain(
+                d3.extent(scatterData, function (d) {
+                  return +d["GDP"];
+                })
+              )
+              .nice();
+
+            // 绑定数据
+            var dots = d3.selectAll(".dot");
+
+            // 处理需要删除的元素
+            dots.remove();
+
+            // 处理需要新增的元素
+            setupScatterDots(scatterData, "GDP", "IndicatorCleanFuel");
+            // scatterSvg.select(".line").remove();
+
+            // scatterSvg.append("line")
+            // .attr("x1", scatterX(500))   // x position of the first end of the line
+            // .attr("y1", scatterY(0))     // y position of the first end of the line
+            // .attr("x2", scatterX(50000)) // x position of the second end of the line
+            // .attr("y2", scatterY(100))   // y position of the second end of the line
+            // .attr("stroke", "red");      // line color
+
+            $("#scatterplot-container").show();
+            $("#linechart-container").hide();
+            break;
+          case "electricity_lifespan":
+            colorInterpolator = d3.interpolateBuGn;
+            values2020 = electricityVsLifeSpan;
+            scaleDomain = d3.extent(Object.values(electricityVsLifeSpan));
+            var scatterData = combinedData.filter(function (row) {
+              return (
+                row["Year"] === "2020" &&
+                row["AverageLifeSpan"] &&
+                row["AccessToElectricity"]
+              );
+            });
+            scatterX = d3.scaleLinear().range([0, scatterWidth]);
+            scatterX
+              .domain(
+                d3.extent(scatterData, function (d) {
+                  return +d["AverageLifeSpan"];
+                })
+              )
+              .nice();
+
+            // 绑定数据
+            var dots = d3.selectAll(".dot");
+
+            // 处理需要删除的元素
+            dots.remove();
+
+            // 处理需要新增的元素
+            setupScatterDots(
+              scatterData,
+              "AverageLifeSpan",
+              "AccessToElectricity"
+            );
+            // scatterSvg.select(".line").remove();
+
+            // scatterSvg.append("line")
+            // .attr("x1", scatterX(0))   // x position of the first end of the line
+            // .attr("y1", scatterY(0))     // y position of the first end of the line
+            // .attr("x2", scatterX(100)) // x position of the second end of the line
+            // .attr("y2", scatterY(100))   // y position of the second end of the line
+            // .attr("stroke", "red");      // line color
+
+            $("#scatterplot-container").show();
+            $("#linechart-container").hide();
+            break;
+          case "fuels_lifespan":
+            colorInterpolator = d3.interpolateRdPu;
+            values2020 = cleanFuelVsLifeSpan;
+            scaleDomain = d3.extent(Object.values(cleanFuelVsLifeSpan));
+            var scatterData = combinedData.filter(function (row) {
+              return (
+                row["Year"] === "2020" &&
+                row["AverageLifeSpan"] &&
+                row["IndicatorCleanFuel"]
+              );
+            });
+            scatterX = d3.scaleLinear().range([0, scatterWidth]);
+            scatterX
+              .domain(
+                d3.extent(scatterData, function (d) {
+                  return +d["AverageLifeSpan"];
+                })
+              )
+              .nice();
+
+            // 绑定数据
+            var dots = d3.selectAll(".dot");
+
+            // 处理需要删除的元素
+            dots.remove();
+
+            // 处理需要新增的元素
+            setupScatterDots(
+              scatterData,
+              "AverageLifeSpan",
+              "IndicatorCleanFuel"
+            );
+            // scatterSvg.select(".line").remove();
+
+            // scatterSvg.append("line")
+            // .attr("x1", scatterX(0))   // x position of the first end of the line
+            // .attr("y1", scatterY(0))     // y position of the first end of the line
+            // .attr("x2", scatterX(100)) // x position of the second end of the line
+            // .attr("y2", scatterY(100))   // y position of the second end of the line
+            // .attr("stroke", "red");      // line color
+
+            $("#scatterplot-container").show();
+            $("#linechart-container").hide();
+            break;
+        }
+
+        // 更新 colorScale 的插值器
+        colorScale
+          .domain(scaleDomain)
+          .range(d3.range(10).map((i) => colorInterpolator(i / 9)));
+
+        // 更新地图颜色
+        // 你需要修改这部分以适应你的代码
+        d3.selectAll(".country") // 选择地图元素
+          .style("fill", function (d) {
+            var country = d.properties.ADMIN; // 获取国家的名字
+            var value = values2020[country]; // 获取对应的数据
+            return value ? colorScale(value) : "#ccc"; // 如果有数据，则返回对应的颜色；如果没有数据，则返回灰色
+          });
+      });
+
+      var scatterMargin = { top: 20, right: 20, bottom: 30, left: 50 },
+        scatterWidth = 900 - scatterMargin.left - scatterMargin.right,
+        scatterHeight = 500 - scatterMargin.top - scatterMargin.bottom;
+
+      var scatterX = d3.scaleLog().range([0, scatterWidth]);
+      var scatterY = d3.scaleLinear().range([scatterHeight, 0]);
+
+      // 创建一个颜色比例尺，根据大洲进行着色
+      var scatterColorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+      var scatterSvg = d3
+        .select("#scatter-plot")
+        .attr("width", scatterWidth + scatterMargin.left + scatterMargin.right)
+        .attr(
+          "height",
+          scatterHeight + scatterMargin.top + scatterMargin.bottom
+        )
+        .append("g")
+        .attr(
+          "transform",
+          "translate(" + scatterMargin.left + "," + scatterMargin.top + ")"
+        );
+
+      // 想要标注的国家列表
+      var countriesToLabel = [
+        "China",
+        "India",
+        "United States",
+        "Indonesia",
+        "Pakistan",
+      ];
+
+      var countryLabel = scatterSvg
+        .append("text")
+        .attr("id", "countryLabel")
+        .style("display", "none") // 默认情况下不显示国家名称
+        .attr("text-anchor", "start"); // 文字左对齐
+
+      /*
+      地图代码
+      */
+
+      // 获取浏览器窗口的宽度和高度
+      var width = window.innerWidth;
+      var height = window.innerHeight;
+      var generateAxis = true;
+      var selectedCountryList = [];
+
+      // 创建投影方式
+      var projection = d3
+        .geoNaturalEarth1()
+        .scale(500)
+        .translate([width / 2, height / 2]);
+
+      // 创建地理路径生成器
+      var path = d3.geoPath().projection(projection);
+
+      // 创建一个量化的颜色比例尺
+      var colorScale = d3
+        .scaleQuantize()
+        .domain([0, 100]) // 设置比例尺的输入域
+        .range(d3.range(10).map((i) => d3.interpolateBlues(i / 9))); // 设置比例尺的输出范围
+
+      // var zoom = d3.zoom()
+      //     .scaleExtent([1, 8]) // 这定义了缩放的最小和最大倍数
+      //     .on("zoom", zoomed);
+
+      var zoom = d3.zoom().scaleExtent([1, 8]).on("zoom", zoomed);
+
+      // 创建 svg 元素并绑定 zoom
+      var svg = d3
+        .select("#world-map")
+        .attr("width", width)
+        .attr("height", height)
+        .call(zoom);
+
+      var g = svg.append("g"); // 创建 g 元素并应用缩放变换
+
+      svg.on("click", function () {
+        // 首先要判断是否点击了具体的国家
+        // 如果当前选中的元素是 svg ，那就意味着没有点击具体的国家
+        if (d3.event.target === this) {
+          scatterSvg
+            .selectAll(".dot")
+            .style("fill", function (d) {
+              return scatterColorScale(d["Continent"]);
+            })
+            .attr("r", 3.5); // 恢复所有点的大小
+          countryLabel.style("display", "none"); // 隐藏国家名称
+          scatterSvg.node().getBBox();
+          d3.select("#linechart-container")
+            .selectAll("path#countryLine, text#countryName")
+            .remove();
+          selectedCountryList = [];
+          d3.select("#selectCountryName").remove();
+        }
+      });
+
+      d3.csv("/combined.csv").then(function (data) {
+        combinedData = data;
+        // set 4 domains and scales for chernoff
+        // 如果有任何原因，一个值为0， 舍去这个值
+        gdpDomain = d3.extent(combinedData, function (d) {
+            return +d.GDP;
+        });
+        console.log("gdpDomain-------", gdpDomain);
+        // 对于chernoff用到的scale，修正为1000-60000，不然会被列支敦士登这样的超高GDP国家把全世界拖成低收入
+        faceScaleFace = d3.scaleQuantize().domain([100, 60000]).range([3, 2, 1]);
+        
+        lifeDomain = d3.extent(combinedData, function (d) {
+            if(+d.AverageLifeSpan != 0) return +d.AverageLifeSpan;
+            //   return d.AverageLifeSpan;
+        });
+        console.log("life-------", lifeDomain);
+        faceScaleHair = d3.scaleQuantize().domain(lifeDomain).range([1, 2, 3]);
+        electricDomain = d3.extent(combinedData, function (d) {
+          return +d.AccessToElectricity;
+        });
+        console.log("electricDomain-------", electricDomain);
+        faceScaleEyebrow = d3
+          .scaleQuantize()
+          .domain(electricDomain)
+          .range([3, 2, 1]);
+        fuelDomain = d3.extent(combinedData, function (d) {
+          return +d.IndicatorCleanFuel;
+        });
+        console.log("fuelDomain-------", fuelDomain);
+        faceScaleMouth = d3.scaleQuantize().domain(fuelDomain).range([3, 2, 1]);
+
+        // 为了提前设置scatterX  scatterY
+        setupScatterPlot();
+
+        data.forEach(function (d) {
+          if (d.Year == "2020") {
+            cleanFuels2020[d.Country] = +d.IndicatorCleanFuel;
+            GDP2020[d.Country] = +d.GDP;
+            console.log(d.Country);
+            electricity2020[d.Country] = +d.AccessToElectricity;
+            averageLifeSpan2020[d.Country] = +d.AverageLifeSpan;
+            electricityVsGDP[d.Country] = +(
+              (scatterY(d.AccessToElectricity) - scatterY(0)) /
+              (scatterX(d.GDP) - scatterX(500))
+            );
+            cleanFuelVsGDP[d.Country] = +(
+              (scatterY(d.IndicatorCleanFuel) - scatterY(0)) /
+              (scatterX(d.GDP) - scatterX(500))
+            );
+
+            if (d.AccessToElectricity && d.AverageLifeSpan)
+              electricityVsLifeSpan[d.Country] = +(
+                d.AccessToElectricity / d.AverageLifeSpan
+              );
+            if (d.IndicatorCleanFuel && d.AverageLifeSpan)
+              cleanFuelVsLifeSpan[d.Country] = +(
+                d.IndicatorCleanFuel / d.AverageLifeSpan
+              );
+          }
+
+          if (!electricityForLineChart[d.Country]) {
+            electricityForLineChart[d.Country] = [];
+          }
+          electricityForLineChart[d.Country].push({
+            year: +d.Year,
+            value: +d.AccessToElectricity,
+          });
+
+          if (!cleanFuelsForLineChart[d.Country]) {
+            cleanFuelsForLineChart[d.Country] = [];
+          }
+          cleanFuelsForLineChart[d.Country].push({
+            year: +d.Year,
+            value: +d.IndicatorCleanFuel,
+          });
+
+          if (!GDPForLineChart[d.Entity]) {
+            GDPForLineChart[d.Entity] = [];
+          }
+          GDPForLineChart[d.Entity].push({
+            year: +d.Year,
+            value: +d.GDP,
+          });
+        });
+        lineChartValue = electricityForLineChart;
+        console.log(GDP2020);
+        console.log(cleanFuels2020);
+        console.log(electricity2020);
+        console.log(averageLifeSpan2020);
+
+        d3.json("countries.geojson").then(function (world) {
+          g.selectAll(".country")
+            .data(world.features)
+            .enter()
+            .append("path")
+            .attr("class", "country")
+            .attr("d", path)
+            .style("fill", function (d) {
+              var country = d.properties.ADMIN; // 获取国家的名字
+              var value = electricity2020[country]; // 获取对应的数据
+              return value ? colorScale(value) : "#ccc"; // 如果有数据，则返回对应的颜色；如果没有数据，则返回灰色
+            })
+            .on("click", function (d) {
+              // 在点击事件中
+              var country = d.properties.ADMIN.replace(/ /g, "_"); // 获取被点击的国家的名字，替换掉空格
+              selectedCountryList.push(country);
+              scatterSvg
+                .selectAll(".dot")
+                .filter(function (d) {
+                  // 如果当前数据元素（d）的国家不在 selectedCountryList 中，返回 true，否则返回 false。
+                  return selectedCountryList.indexOf(d.Country) === -1;
+                })
+                .attr("r", 3.5)
+                .style("fill", "gray"); // 将所有点的颜色设置为灰色
+              scatterSvg
+                .select("." + country)
+                .style("fill", "red") // 将所选国家的点的颜色设置为原来的颜色
+                .attr("r", 7) // 将所选国家的点的大小放大一倍
+                .raise(); // 将所选国家的点提升到最前面
+
+              if (!countriesToLabel.includes(country)) {
+                // countryLabel
+                //     .attr("x", scatterSvg.select("." + country).attr("cx") + 15)
+                //     .attr("y", scatterSvg.select("." + country).attr("cy") + 15)
+                //     .text(country)
+                //     .style("display", null)
+                //     .raise();  // 显示国家名称
+                // 在散点图中添加一个文本标签来显示国家名
+                scatterSvg
+                  .append("text")
+                  .attr("x", scatterSvg.select("." + country).attr("cx") + 15)
+                  .attr("y", scatterSvg.select("." + country).attr("cy") + 15)
+                  .attr("id", "selectCountryName")
+                  .text(country);
+              }
+
+              var linechart = d3
+                .select("#linechart-container")
+                .style("display", "block")
+                .style("opacity", 1);
+              var countryDataForChart = lineChartValue[d.properties.ADMIN];
+              // 定义 x 和 y 轴的比例尺
+              var x = d3.scaleLinear().range([0, 800]),
+                y = d3.scaleLinear().range([500, 0]);
+              var line = d3
+                .line()
+                .x(function (d) {
+                  return x(d.year);
+                })
+                .y(function (d) {
+                  return y(d.value);
+                });
+
+              x.domain(
+                d3.extent(countryDataForChart, function (d) {
+                  return d.year;
+                })
+              );
+              y.domain([
+                0,
+                d3.max(countryDataForChart, function (d) {
+                  return d.value;
+                }),
+              ]);
+
+              // 在折线图的 svg 中添加一条线
+              d3.select("#linechart-container svg")
+                .append("path")
+                .datum(countryDataForChart)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("stroke-width", 1.5)
+                .attr("d", line)
+                .attr("id", "countryLine"); // 给线添加一个id，方便之后的更新或删除
+
+              // 在折线图上添加国家名
+              d3.select("#linechart-container svg")
+                .append("text")
+                .attr("x", x(countryDataForChart[3].year)) // 你可能需要调整这些坐标以适应你的布局
+                .attr("y", y(countryDataForChart[3].value))
+                .style("text-anchor", "end")
+                .text(d.properties.ADMIN)
+                .attr("id", "countryName"); // 给文本添加一个id，方便之后的更新或删除
+            })
+            .on("mouseover", function (d) {
+              let selectOption = $("#data-selector")[0].value;
+              if (
+                selectOption == "electricity" ||
+                selectOption == "fuels" ||
+                selectOption == "GDP"
+              ) {
+                d3.select(this).classed("highlight", true);
+                var tooltips = d3
+                  .select("#tooltip")
+                  .style("left", d3.event.pageX + 10 + "px")
+                  .style("top", d3.event.pageY - 10 + "px")
+                  .style("display", "block")
+                  .style("opacity", 1)
+                  .text(d.properties.ADMIN);
+                var countryDataForChart = lineChartValue[d.properties.ADMIN];
+                generateLineCharts(tooltips, countryDataForChart, 300, 100);
+              }
+            })
+            .on("mouseout", function (d) {
+              let selectOption = $("#data-selector")[0].value;
+              if (
+                selectOption == "electricity" ||
+                selectOption == "fuels" ||
+                selectOption == "GDP"
+              ) {
+                d3.select(this).classed("highlight", false);
+                d3.select("#tooltip").style("display", "none");
+              }
+            });
+        var countryIndex = 0; 
+          world.features.forEach(function (d) {
+            // 计算当前国家的中心
+            var centroid = path.centroid(d);
+            // cleanFuels2020[d.Country] = +d.IndicatorCleanFuel;
+            // GDP2020[d.Country] = +d.GDP;
+            // electricity2020[d.Country] = +d.AccessToElectricity;
+            // averageLifeSpan2020[d.Country] = +d.AverageLifeSpan;
+            // console.log(centroid);
+            // scaleFace(cleanFuels2020);
+            var country = d.properties.ADMIN;
+            faceValue = faceScaleFace(GDP2020[country]);
+            hairValue = faceScaleHair(averageLifeSpan2020[country]);
+            eyebrowValue = faceScaleEyebrow(electricity2020[country]);
+            mouthValue = faceScaleMouth(cleanFuels2020[country]);
+            let faceData;
+            if(GDP2020[country]*averageLifeSpan2020[country]*electricity2020[country]*cleanFuels2020[country] == 0) {
+                console.log("-----0异常 " + countryIndex + " " + country);
+            }
+            else if (!faceValue || !eyebrowValue || !hairValue || !mouthValue) {
+            //   faceData = genRanFaceData();
+              console.log("-----error " + countryIndex + " " + country);
+            } else {
+              faceData = {
+                face: faceValue,
+                hair: hairValue,
+                eyebrow: eyebrowValue,
+                mouth: mouthValue,
+              };
+              console.log(countryIndex + " " + country);
+              console.log(faceData);
+            }
+            createFace(faceData, g, centroid);
+            countryIndex++;
+          });
+        }); // 读取GeoJSON文件
+      });
+
+      function setupScatterDots(scatterData, x, y) {
+        scatterSvg
+          .selectAll(".dot")
+          .data(scatterData)
+          .enter()
+          .append("circle")
+          .attr("class", function (d) {
+            return "dot " + d.Country.replace(/ /g, "_");
+          }) // 添加类名
+          .attr("r", 3.5)
+          .attr("cx", function (d) {
+            return scatterX(+d[x]);
+          })
+          .attr("cy", function (d) {
+            return scatterY(+d[y]);
+          })
+          .style("fill", function (d) {
+            return scatterColorScale(d["Continent"]);
+          })
+          .on("mouseover", function (d) {
+            d3.select(this).attr("r", 7); // 放大这个点
+
+            // 显示工具提示
+            var tooltip = d3.select("#tooltip");
+
+            countryLabel
+              .attr(
+                "x",
+                scatterSvg
+                  .select("." + d["Country"].replace(/ /g, "_"))
+                  .attr("cx") + 15
+              )
+              .attr(
+                "y",
+                scatterSvg
+                  .select("." + d["Country"].replace(/ /g, "_"))
+                  .attr("cy") + 15
+              )
+              .text(d["Country"])
+              .style("display", null)
+              .raise(); // 显示国家名称
+          })
+          .on("mouseout", function (d) {
+            d3.select(this).attr("r", 3.5); // 恢复这个点的原始大小
+
+            // 隐藏工具提示
+            countryLabel.style("display", "none");
+          });
+      }
+
+      function zoomed() {
+        g.attr("transform", d3.event.transform); // g 是你用来绘制地图的 g 元素
+      }
+
+      function generateLineCharts(
+        selection,
+        countryDataForChart,
+        frameWidth,
+        frameHeight
+      ) {
+        // 定义图表的尺寸和边距
+        var margin = { top: 20, right: 20, bottom: 30, left: 50 },
+          width = frameWidth - margin.left - margin.right,
+          height = frameHeight - margin.top - margin.bottom;
+
+        // 定义 x 和 y 轴的比例尺
+        var x = d3.scaleLinear().range([0, width]),
+          y = d3.scaleLinear().range([height, 0]);
+
+        // 定义线生成器
+        var line = d3
+          .line()
+          .x(function (d) {
+            return x(d.year);
+          })
+          .y(function (d) {
+            return y(d.value);
+          });
+
+        // 创建一个新的 SVG 元素
+        var svg = selection
+          .append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+
+          .append("g")
+          .attr(
+            "transform",
+            "translate(" + margin.left + "," + margin.top + ")"
+          );
+
+        // 定义 x 和 y 轴的比例尺的域
+        x.domain(
+          d3.extent(countryDataForChart, function (d) {
+            return d.year;
+          })
+        );
+        y.domain([0, 100]);
+
+        // 添加 x 轴
+        svg
+          .append("g")
+          .attr("transform", "translate(0," + height + ")")
+          .call(
+            d3
+              .axisBottom(x)
+              .tickValues([
+                countryDataForChart[0].year,
+                countryDataForChart[countryDataForChart.length - 1].year,
+              ])
+          );
+
+        // 添加 y 轴
+        svg.append("g").call(d3.axisLeft(y).tickValues([0, 100]));
+
+        // 添加线
+        svg
+          .append("path")
+          .datum(countryDataForChart)
+          .attr("fill", "none")
+          .attr("stroke", "steelblue")
+          .attr("stroke-linejoin", "round")
+          .attr("stroke-linecap", "round")
+          .attr("stroke-width", 1.5)
+          .attr("d", line);
+      }
+
+      generateBottomLineCharts();
+      function generateBottomLineCharts() {
+        // 定义图表的尺寸和边距
+        var margin = { top: 20, right: 20, bottom: 30, left: 50 },
+          width = 800 - margin.left - margin.right,
+          height = 500 - margin.top - margin.bottom;
+
+        // 定义 x 和 y 轴的比例尺
+        var x = d3.scaleLinear().range([0, width]),
+          y = d3.scaleLinear().range([height, 0]);
+
+        // 定义线生成器
+        var line = d3
+          .line()
+          .x(function (d) {
+            return x(d.year);
+          })
+          .y(function (d) {
+            return y(d.value);
+          });
+
+        var linechart = d3.select("#linechart-container");
+        // .style("display", "block")
+        // .style("opacity", 1)
+
+        // 创建一个新的 SVG 元素
+        var svg = linechart
+          .append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+
+          .append("g")
+          .attr(
+            "transform",
+            "translate(" + margin.left + "," + margin.top + ")"
+          );
+
+        // 定义 x 和 y 轴的比例尺的域
+        x.domain(d3.extent([2000, 2020]));
+        y.domain([0, 100]);
+
+        // 添加 x 轴
+        svg
+          .append("g")
+          .attr("transform", "translate(0," + height + ")")
+          .call(d3.axisBottom(x).tickValues([2000, 2020]));
+
+        // 添加 y 轴
+        svg.append("g").call(d3.axisLeft(y).tickValues([0, 100]));
+      }
+
+      // 创建一个图例
+      var legend = svg
+        .append("g")
+        .attr("transform", "translate(0, " + (height - 20) + ")"); // 将图例放在SVG画布的底部
+
+      // 为每个颜色创建一个图例项
+      d3.range(10).forEach(function (i) {
+        legend
+          .append("rect")
+          .attr("x", i * 70) // 将图例项水平排列
+          .attr("width", 70)
+          .attr("height", 10)
+          .attr("fill", colorScale(i * 10)); // 使用颜色比例尺设置填充颜色
+
+        legend
+          .append("text")
+          .attr("x", i * 70) // 将文本放在图例项的右边
+          .attr("y", -2) // 将文本向上偏移，使其不会与图例项重叠
+          .text("  " + i * 10 + "-" + (i + 1) * 10); // 显示颜色对应的数据范围
+      });
+
+      /*
+      散点图代码
+      */
+
+      function setupScatterPlot() {
+        var scatterData = combinedData.filter(function (row) {
+          return (
+            row["Year"] === "2020" && row["AccessToElectricity"] && row["GDP"]
+          );
+        });
+
+        scatterX
+          .domain(
+            d3.extent(scatterData, function (d) {
+              return +d["GDP"];
+            })
+          )
+          .nice();
+        scatterY.domain([0, 100]);
+
+        scatterSvg
+          .append("g")
+          .attr("transform", "translate(0," + scatterHeight + ")")
+          .call(
+            d3
+              .axisBottom(scatterX)
+              .tickValues([500, 1000, 2000, 5000, 10000, 20000, 100000])
+              .tickFormat(d3.format("~r"))
+          )
+          .append("text")
+          .attr("class", "x axis")
+          .attr("fill", "#000")
+          .attr("x", scatterWidth / 2)
+          .attr("y", scatterMargin.bottom)
+          .attr("dy", "-0.5em")
+          .attr("text-anchor", "end")
+          .text("GDP per capita, PPP (constant 2017 international $)");
+
+        scatterSvg
+          .append("g")
+          .call(d3.axisLeft(scatterY))
+          .append("text")
+          .attr("class", "y axis")
+          .attr("fill", "#000")
+          .attr("transform", "rotate(-90)")
+          .attr("y", -scatterMargin.left)
+          .attr("dy", "0.75em")
+          .attr("text-anchor", "end")
+          .text("Access to electricity (% of population)");
+
+        scatterSvg
+          .selectAll(".dot")
+          .data(scatterData)
+          .enter()
+          .append("circle")
+          .attr("class", function (d) {
+            return "dot " + d.Country.replace(/ /g, "_");
+          }) // 添加类名
+          .attr("r", 3.5)
+          .attr("cx", function (d) {
+            return scatterX(+d["GDP"]);
+          })
+          .attr("cy", function (d) {
+            return scatterY(+d["AccessToElectricity"]);
+          })
+          .style("fill", function (d) {
+            return scatterColorScale(d["Continent"]);
+          })
+          .on("mouseover", function (d) {
+            d3.select(this).attr("r", 7); // 放大这个点
+
+            // 显示工具提示
+            var tooltip = d3.select("#tooltip");
+
+            countryLabel
+              .attr(
+                "x",
+                scatterSvg
+                  .select("." + d["Country"].replace(/ /g, "_"))
+                  .attr("cx") + 15
+              )
+              .attr(
+                "y",
+                scatterSvg
+                  .select("." + d["Country"].replace(/ /g, "_"))
+                  .attr("cy") + 15
+              )
+              .text(d["Country"])
+              .style("display", null)
+              .raise(); // 显示国家名称
+          })
+          .on("mouseout", function (d) {
+            d3.select(this).attr("r", 3.5); // 恢复这个点的原始大小
+
+            // 隐藏工具提示
+            countryLabel.style("display", "none");
+          });
+
+        scatterSvg
+          .append("line")
+          .attr("x1", scatterX(500)) // x position of the first end of the line
+          .attr("y1", scatterY(0)) // y position of the first end of the line
+          .attr("x2", scatterX(50000)) // x position of the second end of the line
+          .attr("y2", scatterY(100)) // y position of the second end of the line
+          .attr("stroke", "red"); // line color
+
+        // 过滤数据中的标签国家
+        var labelData = scatterData.filter(function (d) {
+          return countriesToLabel.includes(d.Country);
+        });
+
+        // 创建标签
+        scatterSvg
+          .selectAll(".text")
+          .data(labelData)
+          .enter()
+          .append("text")
+          .attr("x", function (d) {
+            return scatterX(+d["GDP"]);
+          })
+          .attr("y", function (d) {
+            return scatterY(+d["Access to electricity"]);
+          })
+          .text(function (d) {
+            return d.Entity;
+          })
+          .attr("font-size", "10px");
+
+        var legendWidth = 100,
+          legendHeight = 50;
+
+        // 创建一个SVG元素，用于存放图例
+        var legendSvg = scatterSvg
+          .append("g")
+          .attr(
+            "transform",
+            "translate(" + (scatterWidth - legendWidth) + ", 0)"
+          );
+
+        // 创建图例项
+        var continents = ["Asia", "Europe", "Africa", "Oceania", "Americas"]; // 大洲列表
+        continents.forEach(function (continent, i) {
+          var legendItem = legendSvg
+            .append("g")
+            .attr("transform", "translate(0," + i * 20 + ")");
+
+          // 在图例项中添加一个矩形，用于显示颜色
+          legendItem
+            .append("rect")
+            .attr("width", 18)
+            .attr("height", 18)
+            .style("fill", scatterColorScale(continent));
+
+          // 在图例项中添加一些文本，用于显示大洲的名字
+          legendItem
+            .append("text")
+            .attr("x", 24)
+            .attr("y", 9)
+            .attr("dy", ".35em")
+            .text(continent);
+        });
+      }
+    </script>
+  </body>
+</html>
