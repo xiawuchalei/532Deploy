@@ -1,0 +1,177 @@
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: Arial, sans-serif;
+  background-color: #ebeef2;
+}
+
+.header {
+  background-color: #1d3d63;
+  width: 100%; /* 设置宽度为100% */
+  padding: 5px 0; /* 增加内边距 */
+  border-bottom: 3px solid #ce261e; /* 添加底部边框作为分隔线 */
+}
+
+h1 {
+  color: #3c64b1; /* 设置文字颜色 */
+  font-size: 2em; /* 设置字体大小 */
+  text-align: center; /* 设置文字居中 */
+  /* text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); 添加文字阴影 */
+  padding: 5px; /* 增加内边距 */
+  margin-bottom: 5px; /* 增加下外边距 */
+  font-weight: bold;
+}
+h1 {
+  color: white; /* 设置文字颜色为白色 */
+  font-size: 2em; /* 设置字体大小 */
+  text-align: center; /* 设置文字居中 */
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); /* 添加文字阴影 */
+}
+
+#main-container {
+  width: 90%;
+  border: 1px solid #ddd;
+  /* max-width: 1200px; */
+  background-color: #e7e7e7;
+  box-shadow: 0px 0px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 8px;
+  margin-top: 10px;
+}
+
+h1 {
+  /* color: #333; */
+  text-align: center;
+  margin: 20px;
+}
+
+#controls-container {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 5px;
+}
+
+#controls-container-1 {
+  width: 30%;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 5px;
+}
+
+#controls-container-2 {
+  width: 45%;
+  display: flex;
+  justify-content: flex-end;
+  /* justify-content: space-between; */
+  margin-bottom: 5px;
+}
+
+#controls-container select {
+  flex: 1;
+  margin-right: 10px;
+  padding: 5px;
+  border: none;
+  border-radius: 5px;
+  background-color: #eee;
+  font-size: 16px;
+}
+
+#map-container {
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 6px;
+  background-color: #ffffff;
+  /* margin: 2% auto;  上下2%的外边距，左右自动对齐（水平居中） */
+  /* width: 96%;  宽度设置为96%，保持左右各2%的空隙 */
+  height: 80vh; /* 高度设置为视口高度的70%，你可以根据需要调整 */
+  /* width: 75%; */
+}
+
+/* #legend {
+  width: 25%;
+} */
+
+.legend-container {
+  position: absolute; /* 设置 legend-container 使用绝对定位 */
+  top: 10px; /* 距离 map-container 上边界的距离 */
+  left: 10px; /* 距离 map-container 左边界的距离 */
+}
+
+#map-container svg {
+  width: 100%;
+  height: 100%;
+}
+
+#legend {
+  width: 25%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* align-items: center; */
+  height: 100%;
+}
+.legend-svg {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* align-items: center; */
+  /* height: 100%; */
+}
+
+
+
+
+.flex-container {
+  display: flex;
+  justify-content: space-between;
+}
+
+.btn {
+  /* background-color: #4CAF50;  */
+  border: none;
+  /* color: white; */
+  padding: 10px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 4px 2px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.btn-cmp {
+  margin-left: 15px;
+}
+.btn:hover {
+  /* background-color: #45a049; */
+}
+
+/* .selectpicker {
+  padding: 10px 10px;
+} */
+
+.select-sm {
+  font-size: 0.8em;
+  /* height: 20px; */
+  max-width: 300px;
+}
+
+.select-label {
+  display: flex;
+  align-items: center; /* 对齐到中心 */
+  font-size: 1em;
+  font-weight: bold;
+  /* margin-bottom: 5px; */
+  color: #3c64b1;
+  margin-right: 15px;
+  margin-left: 15px;
+}
+
+#scatterplot-container,
+#linechart-container {
+  display: none;
+}
