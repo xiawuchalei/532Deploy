@@ -120,9 +120,6 @@ h1 {
   /* height: 100%; */
 }
 
-
-
-
 .flex-container {
   display: flex;
   justify-content: space-between;
@@ -171,7 +168,71 @@ h1 {
   margin-left: 15px;
 }
 
+.tooltip {
+  width: 350px;
+  height: 150px;
+  position: absolute;
+  background: #fff;
+  padding: 5px;
+  border: 1px solid #000;
+  pointer-events: none;
+  display: none;
+  z-index: 1000;
+  /* 设置一个较大的z-index值 */
+}
+.tooltip2 {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  width: 350px;
+  height: 150px;
+  position: absolute;
+  background: #fff;
+  padding: 5px;
+  border: 1px solid #000;
+  pointer-events: none;
+  display: none;
+  z-index: 1000;
+  /* 设置一个较大的z-index值 */
+}
+.flex-tool {
+  display: flex;
+  flex-direction: column;
+}
+#data-tip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.data-element{
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px;
+}
+.data-element > div {
+  margin: 0;
+  padding: 0;
+}
+.country {
+  /* stroke-width: 1; */
+  /* stroke: #000; */
+  /* transition: all 0.3s ease; */
+}
+
+/* #scatterplot-container,
+#linechart-container {
+  display: none;
+} */
+
 #scatterplot-container,
 #linechart-container {
   display: none;
+  background-color: white;
+  border-radius: 20px;
+  width: 100%;
+  /* Add some padding so the content isn't flush against the border */
+  padding: 10px;
+  box-sizing: border-box; /* So padding doesn't increase the size of the container */
 }
+
