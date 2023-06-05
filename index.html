@@ -439,7 +439,7 @@
         }
       });
 
-      d3.csv("/combined.csv").then(function (data) {
+      d3.csv("/532Deploy/combined.csv").then(function (data) {
         combinedData = data;
         // set 4 domains and scales for chernoff
         // 如果有任何原因，一个值为0， 舍去这个值
@@ -532,7 +532,7 @@
         console.log(electricity2020);
         console.log(averageLifeSpan2020);
 
-        d3.json("countries.geojson").then(function (world) {
+        d3.json("/532Deploy/countries.geojson").then(function (world) {
           g.selectAll(".country")
             .data(world.features)
             .enter()
